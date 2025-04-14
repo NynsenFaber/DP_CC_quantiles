@@ -1,0 +1,8 @@
+name: DP_CC_quantiles
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - numpy=2.2.4
+  - matplotlib=3.10.1
