@@ -10,14 +10,16 @@ bounds = (1, B)
 eps = 1.
 
 X = load_data('gaussian', bounds, n, seed=42)
-quantiles = np.linspace(0, 1, 11)[1:-1]
+X = load_data('mixture', bounds, n, seed=420)
+quantiles = np.linspace(0, 1, 21)[1:-1]
+print(quantiles)
 
-estimates = dp_aq(X, quantiles, bounds, eps)
+estimates = dp_aq(X, quantiles, bounds, eps, swap=True)
 statistics: dict = get_statistics(X, quantiles, estimates)
 for key, value in statistics.items():
     print(f"{key}: {value}")
 
-our_estimates = our_dp_top(X, eps, B, quantiles, split=0.4)
+our_estimates = our_dp_top(X, eps, B, quantiles, split=0.7)
 statistics = get_statistics(X, quantiles, our_estimates)
 for key, value in statistics.items():
     print(f"{key}: {value}")
