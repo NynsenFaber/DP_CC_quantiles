@@ -1,6 +1,7 @@
 import numpy as np
 from .continual_counting import pure_continual_counting
 
+import pdb
 
 def kaplan_exp_mech(arr, eps, a, b, q):
     q *= len(arr)
@@ -18,6 +19,9 @@ def kaplan_exp_mech(arr, eps, a, b, q):
     probs = probs.cumsum()
     rand = np.random.uniform(0, probs[-1])
     idx = np.searchsorted(probs, rand)
+    #print(itv_lengths)
+    #print(probs)
+    #print(rand)
     elem = np.random.uniform(endpts[idx], endpts[idx+1])
     return elem
 
@@ -49,6 +53,7 @@ def our_dp_rec(arr, eps, a, b, quantiles, width):
 
 def our_dp_top(arr, eps, B, quantiles, split=0.5):
     eps1, eps2 = (eps * split, eps * (1-split))
+    arr.sort()
     quantiles.sort()
     quantiles = np.array(quantiles)
     noise = pure_continual_counting(len(quantiles), eps1)
