@@ -5,7 +5,9 @@ from DP_AQ import single_quantile  # exponential mechanism used by Kaplan et al.
 from experiments.analysis import get_statistics
 
 
-def pre_process_quantiles(q_list: list[float], n: int, gap: int) -> list[float]:
+def pre_process_quantiles(q_list: list[float],
+                          gap: int  # TO DO: add a default value
+                          ) -> list[float]:
     """
     Given a list of quantile, and a dataset size n, return a list of quantiles sufficiently spaced.
 
@@ -17,8 +19,6 @@ def pre_process_quantiles(q_list: list[float], n: int, gap: int) -> list[float]:
     ## CHECKS ##
     if len(q_list) == 0:
         raise ValueError("q_list must not be empty")
-    if n < 1:
-        raise ValueError("n must be greater than 1")
     if not all(0 <= q <= 1 for q in q_list):
         raise ValueError("All elements in q_list must be between 0 and 1")
 
@@ -43,6 +43,7 @@ def slice_quantiles(X: list,
                     eps_2: float,
                     bound: tuple[float, float],
                     prob_random: float = 0.0,  # TO DO: add a default value
+                    verbose: bool = False,
                     ) -> list[float]:
     """
     Compute m = len(ranks) quantiles using the SliceQuantiles algorithm. The ranks are already pre-processed to be
@@ -56,6 +57,7 @@ def slice_quantiles(X: list,
     :param eps_2: privacy parameter for the exponential mechanism
     :param bound: bounds of the data set tuple[float, float] (i.e. (a, b))
     :param prob_random: probability of returning a random value in (a, b) instead of the estimate.
+    :param verbose: if True, print information about the algorithm
 
     :return: a list of points in (a, b) that are the estimate of the ranks
     """
@@ -100,6 +102,14 @@ def slice_quantiles(X: list,
         right_index = min(ranks[i] + l + 1, n)
         slices[i] = X[left_index:right_index + 1]  # +1 because the right bound is exclusive
 
+    # check if the slices intersect
+    if verbose:
+        count = 0
+        for i in range(len(I) - 1):
+            if slices[I[i]][-1] > slices[I[i + 1]][0]:
+                count += 1
+        print("Number of slices that intersect: ", count)
+
     ## The accuracy of the exponential may depend in practice on the order we answer the queries.
     ## From first to last ##
     left_bound = bound[0]
@@ -126,7 +136,7 @@ if __name__ == "__main__":
     q_list = np.linspace(0, 1, m + 2)[1:-1]
     n = 1000
     gap = 0.001
-    q_list = pre_process_quantiles(q_list, n, gap)
+    q_list = pre_process_quantiles(q_list, gap)
     print("Ranks used: ", q_list)
 
     # Generate a random dataset
@@ -136,9 +146,9 @@ if __name__ == "__main__":
     eps_1 = 1.
     eps_2 = 1.
     bound = (a, b)
-    l = 20
+    l = 40
     prob_random = 0.0
-    estimates = slice_quantiles(X, q_list, l, eps_1, eps_2, bound, prob_random)
+    estimates = slice_quantiles(X, q_list, l, eps_1, eps_2, bound, prob_random, verbose=True)
     print("Estimates: ", estimates)
     statistics = get_statistics(X, q_list, estimates)
     for key, value in statistics.items():
