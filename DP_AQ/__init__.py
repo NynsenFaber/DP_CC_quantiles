@@ -1,1 +1,2 @@
 from .approximate_quantiles_algo import approximate_quantiles_algo
+from .single_quantile_algo import single_quantile
