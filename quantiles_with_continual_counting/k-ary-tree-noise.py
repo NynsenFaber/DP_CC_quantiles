@@ -1,3 +1,24 @@
+"""
+k-ary Tree Noise Mechanism for Differentially Private Continual Counting.
+
+This module defines the KaryTreeNoise class, which constructs a k-ary tree
+over a data stream of length `max_time` and adds discrete Laplace (two-sided
+geometric) noise at each node to provide pure ε-differential privacy for
+continual prefix sum releases.
+
+Features:
+- Automatically selects branching factor `k` to minimize worst-case variance
+  if not provided.
+- Supports computation of noise terms (`prefix_noise_terms`) and their sum
+  (`prefix_noise`) for any time t.
+- Provides an upper bound on the variance of the noise via `variance_bound`.
+
+Usage:
+    from k_ary_tree_noise import KaryTreeNoise
+    tree = KaryTreeNoise(eps=1.0, max_time=1000)
+    noise = tree.prefix_noise(t)
+"""
+
 import numpy as np
 from math import ceil, log
 from typing import Optional
