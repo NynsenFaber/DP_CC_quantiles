@@ -3,6 +3,7 @@ import numpy as np
 from quantiles_with_continual_counting import KaryTreeNoise
 from DP_AQ import single_quantile  # exponential mechanism used by Kaplan et al.
 from experiments.analysis import get_statistics
+from .continual_counting import pure_continual_counting
 
 
 def pre_process_quantiles(q_list: list[float],
@@ -64,6 +65,7 @@ def slice_quantiles(X: list,
                     swap: bool = True,
                     l: int = None,
                     seed: int = None,
+                    continual_counting: str = "factorization",
                     ) -> tuple[list[float], bool]:
     """
     Compute m = len(ranks) quantiles using the SliceQuantiles algorithm. The ranks are already pre-processed to be
@@ -80,6 +82,7 @@ def slice_quantiles(X: list,
     :param l: `slicing parameter`, it affects the accurcay of the interior point mechanism (the exponential mechanism). It
     is used to determine the size of the slices. If None, it is computed using the `get_slice_parameters` function.
     :param seed: seed for the random number generator
+    :param continual_counting: type of continual counting to use. It can be "factorization" or "k-ary".
 
     :return: a list of points in (a, b) that are the estimate of the ranks. It returns also a boolean that indicates
     if the algorithm returned a random value or not.
@@ -102,25 +105,31 @@ def slice_quantiles(X: list,
     m = len(q_list)
     n = len(X)
     output = np.zeros(m)  # to store the output
-    eps_2 = eps * split  # privacy budget for the continual counting noise
-    eps_1 = eps * (1 - split)  # privacy budget for the exponential mechanism
 
-    # if swap:
-    #     eps_1 = eps_1 / 4
-    # else:
-    #     eps_1 = eps_1 / 2
-    eps_1 = eps_1 / 2
+    eps_cc = eps * split  # privacy budget for the continual counting noise
+    eps_em = eps * (1 - split)  # privacy budget for the exponential mechanism
+    if swap:
+        eps_cc = eps_cc / 2
+        eps_em = eps_em / 3
+    else:
+        eps_em = eps_em / 2
 
     ranks: list[int] = [math.floor(q * n) for q in q_list]  # get ranks
     X = sorted(X)  # sort the data
 
     # Get slice parameter
     if l is None:
-        l = get_slice_parameters(bound, m, eps_1, g=min(X[i] - X[i - 1] for i in range(1, n)))
+        l = get_slice_parameters(bound, m, eps_em, g=min(X[i] - X[i - 1] for i in range(1, n)))
 
-    # Add Countinual Counting noise to the ranks
-    tree = KaryTreeNoise(eps=eps_2, max_time=m)
-    ranks = [rank + tree.prefix_noise(i) for i, rank in enumerate(ranks, start=1)]
+    if continual_counting == "k-ary":
+        # Add Countinual Counting noise to the ranks
+        tree = KaryTreeNoise(eps=eps_cc, max_time=m)
+        ranks = [rank + tree.prefix_noise(i) for i, rank in enumerate(ranks, start=1)]
+    elif continual_counting == "factorization":
+        noise = pure_continual_counting(m=m, eps=eps_cc, seed=seed)
+        ranks = [round(rank + noise[i]) for i, rank in enumerate(ranks)]
+    else:
+        raise ValueError("continual_counting must be 'factorization' or 'k-ary'")
 
     ## Handling edge cases ##
     # flip coin c with probability gamma
@@ -156,7 +165,7 @@ def slice_quantiles(X: list,
         output[i] = single_quantile(slices[i],
                                     bounds=(left_bound, bound[1]),
                                     quantile=0.5,
-                                    epsilon=eps_1,
+                                    epsilon=eps_em,
                                     swap=True,
                                     seed=seed)
         # update the left bound
