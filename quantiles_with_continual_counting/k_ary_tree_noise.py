@@ -23,6 +23,7 @@ import numpy as np
 from math import ceil, log
 from typing import Optional
 
+
 class KaryTreeNoise:
     def __init__(self, eps: float, max_time: int, k: Optional[int] = None):
         self.eps = eps
@@ -60,8 +61,8 @@ class KaryTreeNoise:
         return self.noise[level][idx]
 
     def prefix_noise_terms(self, t: int):
-        if not (1 <= t <= self.k**self.H):
-            raise ValueError(f"t must be in [1, {self.k**self.H}]")
+        if not (1 <= t <= self.k ** self.H):
+            raise ValueError(f"t must be in [1, {self.k ** self.H}]")
 
         # always include root
         yield self._get_noise(0, 0)
@@ -103,5 +104,5 @@ class KaryTreeNoise:
 if __name__ == "__main__":
     MAX_TIME = 23
     tree = KaryTreeNoise(eps=1.0, max_time=MAX_TIME)
-    for t in range(1,MAX_TIME+1):
+    for t in range(1, MAX_TIME + 1):
         print(f"t={t:3d}, noise={tree.prefix_noise(t)}")

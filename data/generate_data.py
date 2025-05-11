@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 
 
 def load_data(data_dist: str,
@@ -55,3 +56,53 @@ def load_data(data_dist: str,
     else:
         raise Exception('Unsupported Data Distribution')
     return arr
+
+
+if __name__ == "__main__":
+    np.random.seed(42)
+    ## Generate uniform data like Kaplan et al.
+    n = 1_000_000
+    bounds = (-5, 5)
+    data = np.random.uniform(bounds[0], bounds[1], n)
+    output = {"bounds": bounds,
+              "data":   data,
+              "type":   "uniform"}
+    # save as pickle
+    with open('uniform_data_small_bounds.pkl', 'wb') as f:
+        pickle.dump(output, f)
+    print("Data saved to uniform_data_small_bounds.pkl")
+
+    ## Generate Uniform data with large bounds
+    bounds = (0, 2 ** 32)
+    data = np.random.uniform(bounds[0], bounds[1], n)
+    output = {"bounds": bounds,
+              "data":   data,
+              "type":   "uniform"}
+    # save as pickle
+    with open('uniform_data_large_bounds.pkl', 'wb') as f:
+        pickle.dump(output, f)
+    print("Data saved to uniform_data_large_bounds.pkl")
+
+    ## Generate Gaussian data like Kaplan et al.
+    mean = 0
+    std = np.sqrt(5)
+    data = np.random.normal(mean, std, n)
+    output = {"bounds": (-10 * std, 10 * std),  # 10 std is a practical bound
+              "data":   data,
+              "type":   "gaussian"}
+    # save as pickle
+    with open('gaussian_data_small_bounds.pkl', 'wb') as f:
+        pickle.dump(output, f)
+    print("Data saved to gaussian_data_small_bounds.pkl")
+
+    ## Generate Gaussian data with large bounds
+    mean = 0
+    std = np.sqrt(2 ** 32)
+    data = np.random.normal(mean, std, n)
+    output = {"bounds": (-10 * std, 10 * std),  # 10 std is a practical bound
+              "data":   data,
+              "type":   "gaussian"}
+    # save as pickle
+    with open('gaussian_data_large_bounds.pkl', 'wb') as f:
+        pickle.dump(output, f)
+    print("Data saved to gaussian_data_large_bounds.pkl")
