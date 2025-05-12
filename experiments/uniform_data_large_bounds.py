@@ -27,7 +27,7 @@ eps = 1.  # privacy budget
 m_list = range(10, 210, 10)  # number of quantiles
 num_algos = 2  # Kaplan et al. and our mechanism
 num_experiments = 100
-swap = True
+swap = False
 
 ## Load Data ##
 with open("../data/uniform_data_large_bounds.pkl", "rb") as f:
@@ -87,7 +87,7 @@ df = pd.DataFrame(records)
 df_our_mechanism = df[df['Algorithm'] == 'Our Mechanism']
 
 # save dataset
-folder_path = "../results/uniform_data_large_bounds/"
+folder_path = "../results/uniform_data_large_bounds_swap_false/"
 import os
 if not os.path.exists(folder_path):
     os.makedirs(folder_path)

@@ -36,73 +36,112 @@ def load_data(data_dist: str,
         # sample from a mixture of gaussians
         m = kwargs.get('m', 10)  # number of gaussians
         width = kwargs.get('width', 100)  # space between the gaussians
-        # selects m random centers in the range [20 * width, bounds[1] - 20 * width]
-        centers = np.random.uniform(20 * width, bounds[1] - 20 * width, m)
+        centers = np.random.uniform(bounds[0], bounds[1], m - 1)
+        centers = np.concatenate((centers, np.array([bounds[0], bounds[1]])))  # two centers at the bounds
         arr = np.array([])
         num_left = n
         for i in range(0, m - 1):
             # sample from a gaussian with mean centers[i] and std width n // m elements
-            data = np.random.normal(centers[i], width, n // m)
-            # apply bounds
-            data = np.maximum(bounds[0], np.minimum(bounds[1], data))
+            data = np.random.normal(centers[i], width, size=n // m)
             # add the elements to the array
             arr = np.concatenate((data, arr))
             num_left -= n // m
         data = np.random.normal(centers[-1], width, num_left)
-        # apply bounds
-        data = np.maximum(bounds[0], np.minimum(bounds[1], data))
         # add the elements to the array
         arr = np.concatenate((data, arr))
+        # CHECK FOR DUPLICATES
+        arr = np.unique(arr)
+
+    elif data_dist == 'uniform_random_walk':
+        # sample from a random walk
+        arr = np.zeros(n)
+        g = kwargs.get('g', 1)  # gap between the elements
+        step = kwargs.get('step', 1)
+        steps = np.random.uniform(low=0, high=step, size=n-1)
+        arr[0] = bounds[0]
+        for i in range(1, n):
+            arr[i] = arr[i - 1] + g + steps[i]
+        return arr
+
     else:
         raise Exception('Unsupported Data Distribution')
+
+
     return arr
 
 
 if __name__ == "__main__":
     np.random.seed(42)
-    ## Generate uniform data like Kaplan et al.
+    # ## Generate uniform data like Kaplan et al.
+    # n = 1_000_000
+    # bounds = (-5, 5)
+    # data = np.random.uniform(bounds[0], bounds[1], n)
+    # output = {"bounds": bounds,
+    #           "data":   data,
+    #           "type":   "uniform"}
+    # # save as pickle
+    # with open('uniform_data_small_bounds.pkl', 'wb') as f:
+    #     pickle.dump(output, f)
+    # print("Data saved to uniform_data_small_bounds.pkl")
+    #
+    # ## Generate Uniform data with large bounds
+    # bounds = (0, 2 ** 32)
+    # data = np.random.uniform(bounds[0], bounds[1], n)
+    # output = {"bounds": bounds,
+    #           "data":   data,
+    #           "type":   "uniform"}
+    # # save as pickle
+    # with open('uniform_data_large_bounds.pkl', 'wb') as f:
+    #     pickle.dump(output, f)
+    # print("Data saved to uniform_data_large_bounds.pkl")
+    #
+    # ## Generate Gaussian data like Kaplan et al.
+    # mean = 0
+    # std = np.sqrt(5)
+    # data = np.random.normal(mean, std, n)
+    # output = {"bounds": (-10 * std, 10 * std),  # 10 std is a practical bound
+    #           "data":   data,
+    #           "type":   "gaussian"}
+    # # save as pickle
+    # with open('gaussian_data_small_bounds.pkl', 'wb') as f:
+    #     pickle.dump(output, f)
+    # print("Data saved to gaussian_data_small_bounds.pkl")
+    #
+    # ## Generate Gaussian data with large bounds
+    # mean = 0
+    # std = np.sqrt(2 ** 32)
+    # data = np.random.normal(mean, std, n)
+    # output = {"bounds": (-10 * std, 10 * std),  # 10 std is a practical bound
+    #           "data":   data,
+    #           "type":   "gaussian"}
+    # # save as pickle
+    # with open('gaussian_data_large_bounds.pkl', 'wb') as f:
+    #     pickle.dump(output, f)
+    # print("Data saved to gaussian_data_large_bounds.pkl")
+
+    ## Generate Mixture data
     n = 1_000_000
-    bounds = (-5, 5)
-    data = np.random.uniform(bounds[0], bounds[1], n)
-    output = {"bounds": bounds,
-              "data":   data,
-              "type":   "uniform"}
-    # save as pickle
-    with open('uniform_data_small_bounds.pkl', 'wb') as f:
-        pickle.dump(output, f)
-    print("Data saved to uniform_data_small_bounds.pkl")
+    n_min = 250_000
+    bound_list = [(-10 * 2 ** i, 10 * 2 ** i) for i in range(8, 33)]
+    width = 100
+    min_gap = 1e-6
+    output = []
+    for bound in bound_list:
+        data = load_data('mixture', bound, n, m=100, width=width)
+        data = np.sort(data)
+        index_to_remove = []
+        for i in range(len(data) - 1):
+            if data[i + 1] - data[i] < min_gap:
+                index_to_remove.append(i)
+        data = np.delete(data, index_to_remove)
+        if len(data) < n_min:
+            raise Exception('Too few samples to generate')
 
-    ## Generate Uniform data with large bounds
-    bounds = (0, 2 ** 32)
-    data = np.random.uniform(bounds[0], bounds[1], n)
-    output = {"bounds": bounds,
-              "data":   data,
-              "type":   "uniform"}
+        # Store
+        output.append({"bounds": (bound[0] - 10 * width, bound[1] + 10 * width),
+                       "data":   data,
+                       "type":   "mixture"})
     # save as pickle
-    with open('uniform_data_large_bounds.pkl', 'wb') as f:
+    with open('mixture_data_large_bounds.pkl', 'wb') as f:
         pickle.dump(output, f)
-    print("Data saved to uniform_data_large_bounds.pkl")
-
-    ## Generate Gaussian data like Kaplan et al.
-    mean = 0
-    std = np.sqrt(5)
-    data = np.random.normal(mean, std, n)
-    output = {"bounds": (-10 * std, 10 * std),  # 10 std is a practical bound
-              "data":   data,
-              "type":   "gaussian"}
-    # save as pickle
-    with open('gaussian_data_small_bounds.pkl', 'wb') as f:
-        pickle.dump(output, f)
-    print("Data saved to gaussian_data_small_bounds.pkl")
-
-    ## Generate Gaussian data with large bounds
-    mean = 0
-    std = np.sqrt(2 ** 32)
-    data = np.random.normal(mean, std, n)
-    output = {"bounds": (-10 * std, 10 * std),  # 10 std is a practical bound
-              "data":   data,
-              "type":   "gaussian"}
-    # save as pickle
-    with open('gaussian_data_large_bounds.pkl', 'wb') as f:
-        pickle.dump(output, f)
-    print("Data saved to gaussian_data_large_bounds.pkl")
+    print("Data saved to mixture_data_large_bounds.pkl")
