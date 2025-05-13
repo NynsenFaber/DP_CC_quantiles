@@ -2,7 +2,7 @@ from copy import deepcopy
 
 import numpy as np
 from DP_AQ import approximate_quantiles_algo as dp_aq  # Kaplan et al. 2023
-from our_mechanism.slice_quantile import slice_quantiles  # our mechanism
+from our_mechanism.slice_quantile import SliceQuantile  # our mechanism
 from analysis import get_statistics
 from utils import from_rho_eps
 import pickle
@@ -22,15 +22,17 @@ def gaussian_noise(array, bounds, scale=0.00001, seed=None):
 ## Hyperparameters ##
 n = 100_000  # max number of elements to sample
 np.random.seed(42)  # for reproducibility
-rho = 1 / 8  # privacy budget for Kaplan et al.
-eps = from_rho_eps(rho=rho, delta=1e-10)  # privacy budget for our mechanism
-m_list = range(10, 210, 10)  # number of quantiles
-num_algos = 2  # Kaplan et al. and our mechanism
+rho = 1 / 100  # privacy budget for Kaplan et al.
+delta = 1e-20
+eps = from_rho_eps(rho=rho, delta=delta)  # privacy budget for our mechanism
+m_list = range(10, 150, 10)  # number of quantiles
+num_algos = 3  # Kaplan et al. and our mechanism
 num_experiments = 100
 swap = False
 folder_path = "../results/gaussian_data_small_bounds_swap_false/"
 data_path = "../data/gaussian_data_small_bounds.pkl"
-tag = "_better_bound"
+tag = "better_bound"
+alg_names = ["Kaplan et al. pure DP", "Kaplan et al. approx DP", "Slicing Quantiles"]
 
 ## Load Data ##
 with open(data_path, "rb") as f:
@@ -40,6 +42,8 @@ print("Data loaded: Gaussian data (Small bounds)")
 print("Number of elements in data: ", len(data["data"]))
 n = min(n, len(data["data"]))
 print(f"Sampled {n} elements")
+print(f"Epsilon: {eps}")
+print(f"Delta: {delta}")
 # sample n random elements
 X = np.random.choice(data["data"], n, replace=False)
 
@@ -47,6 +51,7 @@ bounds = data["bounds"]
 print("Bounds: ", bounds)
 # add small noise to the data to ensure that they are not equal
 X, bounds = gaussian_noise(X, bounds)
+g = min(X[i] - X[i - 1] for i in range(1, n))
 
 # get equally spaced quantiles
 quantiles = [np.linspace(0, 1, m + 2)[1:-1] for m in m_list]
@@ -54,25 +59,33 @@ quantiles = [np.linspace(0, 1, m + 2)[1:-1] for m in m_list]
 max_errors = np.zeros((num_algos, len(m_list), num_experiments))
 times = np.zeros((num_algos, len(m_list), num_experiments))
 for i, m in enumerate(m_list):
+    our_mechanism = SliceQuantile(bound=bounds, n=n, m=m, eps=eps, swap=swap, split=0.5, g=g)
     for j in range(num_experiments):
         # Run Kaplan et al. algorithm
         start = time.time()
-        estimates = dp_aq(X, quantiles[i], bounds, rho, swap=swap, cdp=True)
+        estimates = dp_aq(X, quantiles[i], bounds, eps, swap=swap)
         times[0][i][j] = time.time() - start
         statistics: dict = get_statistics(X, quantiles[i], estimates)
         max_errors[0][i][j] = statistics['max_error']
 
+        # Run Kaplan et al. algorithm with approximate DP
+        start = time.time()
+        estimates = dp_aq(X, quantiles[i], bounds, rho, swap=swap, cdp=True)
+        times[1][i][j] = time.time() - start
+        statistics: dict = get_statistics(X, quantiles[i], estimates)
+        max_errors[1][i][j] = statistics['max_error']
+
         # Run our mechanism
         start = time.time()
-        our_estimates = slice_quantiles(X, q_list=quantiles[i], eps=eps, bound=bounds, split=0.5, swap=swap,
-                                        continual_counting="k-ary")
-        times[1][i][j] = time.time() - start
+        # compute minimum spacing between points
+        our_estimates = our_mechanism.approximate_mechanism(X, q_list=quantiles[i], delta=1e-10)
+        times[2][i][j] = time.time() - start
         statistics = get_statistics(X, quantiles[i], our_estimates)
-        max_errors[1][i][j] = statistics['max_error']
+        max_errors[2][i][j] = statistics['max_error']
 
 # Convert to long-form DataFrame for Seaborn
 records = []
-for algo_idx, algo in enumerate(["Kaplan et al.", "Our Mechanism"]):
+for algo_idx, algo in enumerate(alg_names):
     for m_idx, m in enumerate(m_list):
         for exp in range(num_experiments):
             records.append({
@@ -82,7 +95,6 @@ for algo_idx, algo in enumerate(["Kaplan et al.", "Our Mechanism"]):
                 "Time":      times[algo_idx, m_idx, exp],
             })
 df = pd.DataFrame(records)
-df_our_mechanism = df[df['Algorithm'] == 'Our Mechanism']
 
 # save dataset
 import os
@@ -100,6 +112,7 @@ plt.figure(figsize=(10, 6))
 default_colors = sns.color_palette("deep")
 red = default_colors[3]  # Red in 'deep' palette
 blue = default_colors[0]  # Blue in 'deep' palette
+green = default_colors[1]  # Green in 'deep' palette
 
 sns.lineplot(
     data=df,
@@ -107,7 +120,7 @@ sns.lineplot(
     y="Max Error",
     hue="Algorithm",
     errorbar=('ci', 95),  # confidence interval 95%
-    palette=[red, blue],
+    palette=[red, green, blue],
     linewidth=2,
 )
 
@@ -134,7 +147,7 @@ sns.lineplot(
     y="Time",
     hue="Algorithm",
     errorbar=('ci', 95),  # confidence interval 95%
-    palette=[red, blue],
+    palette=[red, green, blue],
     linewidth=2,
 )
 

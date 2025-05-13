@@ -12,8 +12,8 @@ def get_epsilon(n_quantiles, epsilon, swap, cdp):
         composition = layers
 
     if cdp:
-        epsilon = np.sqrt((2 * epsilon) / composition)
-        # epsilon = np.sqrt((8 * epsilon) / composition)
+        # epsilon = np.sqrt((2 * epsilon) / composition)
+        epsilon = np.sqrt((8 * epsilon) / composition)
     else:
         epsilon = epsilon / composition
 
