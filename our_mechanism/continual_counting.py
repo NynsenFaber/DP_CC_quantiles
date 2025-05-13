@@ -2,7 +2,7 @@ import numpy as np
 from scipy import linalg
 
 
-def pure_continual_counting(m: int, eps: float, seed=None) -> np.ndarray:
+def pure_continual_counting(m: int, eps: float) -> np.ndarray:
     """
     Generate noise for the pure continual counting mechanism.
     :param m: number of noise values to generate
@@ -13,17 +13,6 @@ def pure_continual_counting(m: int, eps: float, seed=None) -> np.ndarray:
     L = linalg.sqrtm(mat)
     width = 1 / eps * linalg.norm(L, ord=1)
     noise = np.random.laplace(0, width, m)
-
-    # # Discrete Laplace noise
-    # p = 1 - np.exp(- 1 / width)
-    # if seed is not None:
-    #     np.random.seed(seed)
-    # noise_1 = np.random.geometric(p, size=m)
-    # if seed is not None:
-    #     np.random.seed(seed + 1)
-    # noise_2 = np.random.geometric(1 - p, size=m)
-    # noise = noise_1 - noise_2
-
     noise = L @ noise
     return noise
 

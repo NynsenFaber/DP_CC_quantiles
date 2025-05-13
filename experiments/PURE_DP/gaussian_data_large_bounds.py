@@ -27,15 +27,14 @@ eps = 1.  # privacy budget
 m_list = range(10, 210, 10)  # number of quantiles
 num_algos = 2  # Kaplan et al. and our mechanism
 num_experiments = 100
-swap = True
+swap = False
 save = False
-l = None
 
 ## Load Data ##
-with open("../data/uniform_data_small_bounds.pkl", "rb") as f:
+with open("../../data/gaussian_data_large_bounds.pkl", "rb") as f:
     data = pickle.load(f)
 # print("Data loaded: working_hours_data.pkl (Adult Hours)")
-print("Data loaded: Uniform data (Small bounds)")
+print("Data loaded: Gaussian data (Large bounds)")
 print("Number of elements in data: ", len(data["data"]))
 n = min(n, len(data["data"]))
 print(f"Sampled {n} elements")
@@ -66,7 +65,7 @@ for i, m in enumerate(m_list):
         # Run our mechanism
         start = time.time()
         our_estimates, flag_random = slice_quantiles(X, q_list=quantiles[i], eps=eps, bound=bounds, split=0.5,
-                                                     seed=seed, swap=swap, continual_counting="k-ary", l=l)
+                                                     seed=seed, swap=swap, continual_counting="k-ary")
         times[1][i][j] = time.time() - start
         returned_random[1][i] += int(flag_random)
         if not flag_random:
@@ -89,20 +88,20 @@ df = pd.DataFrame(records)
 df_our_mechanism = df[df['Algorithm'] == 'Our Mechanism']
 
 # save dataset
-folder_path = "../results/uniform_data_small_bounds/"
+folder_path = "../../results/gaussian_data_large_bounds_swap_false/"
 import os
-
 if not os.path.exists(folder_path):
     os.makedirs(folder_path)
-with open(f"{folder_path}/data.pkl", "wb") as f:
-    pickle.dump(df, f)
+if save:
+    with open(f"{folder_path}/data.pkl", "wb") as f:
+        pickle.dump(df, f)
 
 sns.set_theme(style="whitegrid")
 plt.figure(figsize=(10, 6))
 
 # Get Seaborn's default palette colors
 default_colors = sns.color_palette("deep")
-red = default_colors[3]  # Red in 'deep' palette
+red = default_colors[3]   # Red in 'deep' palette
 blue = default_colors[0]  # Blue in 'deep' palette
 
 sns.lineplot(
@@ -115,7 +114,7 @@ sns.lineplot(
     linewidth=2,
 )
 
-plt.title("Uniform Dataset - Utility", fontsize=16)
+plt.title("Guassian Dataset - Utility", fontsize=16)
 plt.xlabel("Number of Quantiles (m)", fontsize=14)
 plt.ylabel("Max Rank Error", fontsize=14)
 plt.xticks(fontsize=12)
@@ -137,7 +136,7 @@ sns.barplot(
     linewidth=2,
 )
 
-plt.title("Uniform Dataset - Fraction of Success", fontsize=16)
+plt.title("Guassian Dataset - Fraction of Success", fontsize=16)
 plt.xlabel("Number of Quantiles (m)", fontsize=14)
 plt.ylabel("Fraction", fontsize=14)
 plt.xticks(fontsize=12)
@@ -161,7 +160,7 @@ sns.lineplot(
     linewidth=2,
 )
 
-plt.title("Uniform Dataset - Time", fontsize=16)
+plt.title("Guassian Dataset - Time", fontsize=16)
 plt.xlabel("Number of Quantiles (m)", fontsize=14)
 plt.ylabel("Time (s)", fontsize=14)
 plt.xticks(fontsize=12)
@@ -172,3 +171,5 @@ plt.tight_layout()
 # save
 if save: plt.savefig(f"{folder_path}/time.png", dpi=300)
 plt.show()
+
+

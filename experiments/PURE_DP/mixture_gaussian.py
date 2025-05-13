@@ -20,20 +20,22 @@ def gaussian_noise(array, bounds, scale=0.00001, seed=None):
 
 
 ## Hyperparameters ##
-n = 250_000  # max number of elements to sample
+n = 50_000  # max number of elements to sample
 seed = 42  # for reproducibility
 np.random.seed(seed)
 eps = 1.  # privacy budget
-m_list = range(10, 210, 10)  # number of quantiles
+m_list = range(5, 70, 5)  # number of quantiles
 num_algos = 2  # Kaplan et al. and our mechanism
 num_experiments = 100
 swap = False
+save = False
 
 ## Load Data ##
-with open("../data/gaussian_data_large_bounds.pkl", "rb") as f:
-    data = pickle.load(f)
+with open("../../data/mixture_data_large_bounds.pkl", "rb") as f:
+    data_list = pickle.load(f)
 # print("Data loaded: working_hours_data.pkl (Adult Hours)")
-print("Data loaded: Gaussian data (Large bounds)")
+print("Data loaded: Mixture Gaussian")
+data = data_list[-1]
 print("Number of elements in data: ", len(data["data"]))
 n = min(n, len(data["data"]))
 print(f"Sampled {n} elements")
@@ -87,12 +89,13 @@ df = pd.DataFrame(records)
 df_our_mechanism = df[df['Algorithm'] == 'Our Mechanism']
 
 # save dataset
-folder_path = "../results/gaussian_data_large_bounds_swap_false/"
+folder_path = "../../results/mixture_gaussian_many_quantiles/"
 import os
 if not os.path.exists(folder_path):
     os.makedirs(folder_path)
-with open(f"{folder_path}/data.pkl", "wb") as f:
-    pickle.dump(df, f)
+if save:
+    with open(f"{folder_path}/data.pkl", "wb") as f:
+        pickle.dump(df, f)
 
 sns.set_theme(style="whitegrid")
 plt.figure(figsize=(10, 6))
@@ -112,7 +115,7 @@ sns.lineplot(
     linewidth=2,
 )
 
-plt.title("Guassian Dataset - Utility", fontsize=16)
+plt.title("Mixture Gaussian - Utility", fontsize=16)
 plt.xlabel("Number of Quantiles (m)", fontsize=14)
 plt.ylabel("Max Rank Error", fontsize=14)
 plt.xticks(fontsize=12)
@@ -121,7 +124,7 @@ plt.yticks(fontsize=12)
 plt.legend(title="Algorithm")
 plt.tight_layout()
 # save
-plt.savefig(f"{folder_path}/utility.png", dpi=300)
+if save: plt.savefig(f"{folder_path}/utility.png", dpi=300)
 plt.show()
 
 sns.set_theme(style="whitegrid")
@@ -134,14 +137,14 @@ sns.barplot(
     linewidth=2,
 )
 
-plt.title("Guassian Dataset - Fraction of Success", fontsize=16)
+plt.title("Mixture Gaussian - Fraction of Success", fontsize=16)
 plt.xlabel("Number of Quantiles (m)", fontsize=14)
 plt.ylabel("Fraction", fontsize=14)
 plt.xticks(fontsize=12)
 plt.yticks(fontsize=12)
 plt.tight_layout()
 # save
-plt.savefig(f"{folder_path}/fraction_success.png", dpi=300)
+if save: plt.savefig(f"{folder_path}/fraction_success.png", dpi=300)
 plt.show()
 
 # Make a plot for the time
@@ -158,7 +161,7 @@ sns.lineplot(
     linewidth=2,
 )
 
-plt.title("Guassian Dataset - Time", fontsize=16)
+plt.title("Mixture Gaussian - Time", fontsize=16)
 plt.xlabel("Number of Quantiles (m)", fontsize=14)
 plt.ylabel("Time (s)", fontsize=14)
 plt.xticks(fontsize=12)
@@ -167,7 +170,7 @@ plt.yticks(fontsize=12)
 plt.legend(title="Algorithm")
 plt.tight_layout()
 # save
-plt.savefig(f"{folder_path}/time.png", dpi=300)
+if save: plt.savefig(f"{folder_path}/time.png", dpi=300)
 plt.show()
 
 

@@ -2,13 +2,13 @@ from copy import deepcopy
 
 import numpy as np
 from DP_AQ import approximate_quantiles_algo as dp_aq  # Kaplan et al. 2023
-from our_mechanism.slice_quantile import slice_quantiles  # our mechanism
+from our_mechanism.slice_quantile import pre_process_quantiles, slice_quantiles  # our mechanism
 from analysis import get_statistics
-from utils import from_rho_eps
 import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+from generate_quantiles import equally_spaced_qantiles
 import time
 
 
@@ -20,20 +20,17 @@ def gaussian_noise(array, bounds, scale=0.00001, seed=None):
 
 
 ## Hyperparameters ##
-n = 100_000  # max number of elements to sample
-np.random.seed(42)  # for reproducibility
-rho = 1 / 8  # privacy budget for Kaplan et al.
-eps = from_rho_eps(rho=rho, delta=1e-10)  # privacy budget for our mechanism
+n = 250_000  # max number of elements to sample
+seed = 42  # for reproducibility
+np.random.seed(seed)
+eps = 1.  # privacy budget
 m_list = range(10, 210, 10)  # number of quantiles
 num_algos = 2  # Kaplan et al. and our mechanism
 num_experiments = 100
 swap = False
-folder_path = "../results/gaussian_data_small_bounds_swap_false/"
-data_path = "../data/gaussian_data_small_bounds.pkl"
-tag = "_better_bound"
 
 ## Load Data ##
-with open(data_path, "rb") as f:
+with open("../../data/gaussian_data_small_bounds.pkl", "rb") as f:
     data = pickle.load(f)
 # print("Data loaded: working_hours_data.pkl (Adult Hours)")
 print("Data loaded: Gaussian data (Small bounds)")
@@ -49,26 +46,30 @@ print("Bounds: ", bounds)
 X, bounds = gaussian_noise(X, bounds)
 
 # get equally spaced quantiles
-quantiles = [np.linspace(0, 1, m + 2)[1:-1] for m in m_list]
+quantiles = [equally_spaced_qantiles(m) for m in m_list]
 
 max_errors = np.zeros((num_algos, len(m_list), num_experiments))
 times = np.zeros((num_algos, len(m_list), num_experiments))
+returned_random = np.zeros((num_algos, len(m_list)))
 for i, m in enumerate(m_list):
     for j in range(num_experiments):
+        seed = seed + j
         # Run Kaplan et al. algorithm
         start = time.time()
-        estimates = dp_aq(X, quantiles[i], bounds, rho, swap=swap, cdp=True)
+        estimates = dp_aq(X, quantiles[i], bounds, eps, swap=swap, seed=seed)
         times[0][i][j] = time.time() - start
         statistics: dict = get_statistics(X, quantiles[i], estimates)
         max_errors[0][i][j] = statistics['max_error']
 
         # Run our mechanism
         start = time.time()
-        our_estimates = slice_quantiles(X, q_list=quantiles[i], eps=eps, bound=bounds, split=0.5, swap=swap,
-                                        continual_counting="k-ary")
+        our_estimates, flag_random = slice_quantiles(X, q_list=quantiles[i], eps=eps, bound=bounds, split=0.5,
+                                                     seed=seed, swap=swap, continual_counting="k-ary")
         times[1][i][j] = time.time() - start
-        statistics = get_statistics(X, quantiles[i], our_estimates)
-        max_errors[1][i][j] = statistics['max_error']
+        returned_random[1][i] += int(flag_random)
+        if not flag_random:
+            statistics = get_statistics(X, quantiles[i], our_estimates)
+            max_errors[1][i][j] = statistics['max_error']
 
 # Convert to long-form DataFrame for Seaborn
 records = []
@@ -76,29 +77,29 @@ for algo_idx, algo in enumerate(["Kaplan et al.", "Our Mechanism"]):
     for m_idx, m in enumerate(m_list):
         for exp in range(num_experiments):
             records.append({
-                "Algorithm": algo,
-                "Quantiles": m,
-                "Max Error": max_errors[algo_idx, m_idx, exp],
-                "Time":      times[algo_idx, m_idx, exp],
+                "Algorithm":       algo,
+                "Quantiles":       m,
+                "Max Error":       max_errors[algo_idx, m_idx, exp],
+                "Returned Random": returned_random[algo_idx][m_idx] / num_experiments,
+                "Time":            times[algo_idx, m_idx, exp],
             })
 df = pd.DataFrame(records)
 df_our_mechanism = df[df['Algorithm'] == 'Our Mechanism']
 
 # save dataset
+folder_path = "../../results/gaussian_data_small_bounds_swap_false/"
 import os
-
 if not os.path.exists(folder_path):
     os.makedirs(folder_path)
-with open(f"{folder_path}/data{tag}.pkl", "wb") as f:
+with open(f"{folder_path}/data.pkl", "wb") as f:
     pickle.dump(df, f)
-print("Data saved to: ", f"{folder_path}/data{tag}.pkl")
 
 sns.set_theme(style="whitegrid")
 plt.figure(figsize=(10, 6))
 
 # Get Seaborn's default palette colors
 default_colors = sns.color_palette("deep")
-red = default_colors[3]  # Red in 'deep' palette
+red = default_colors[3]   # Red in 'deep' palette
 blue = default_colors[0]  # Blue in 'deep' palette
 
 sns.lineplot(
@@ -120,8 +121,27 @@ plt.yticks(fontsize=12)
 plt.legend(title="Algorithm")
 plt.tight_layout()
 # save
-plt.savefig(f"{folder_path}/utility{tag}.png", dpi=300)
-print("Utility plot saved to: ", f"{folder_path}/utility{tag}.png")
+plt.savefig(f"{folder_path}/utility.png", dpi=300)
+plt.show()
+
+sns.set_theme(style="whitegrid")
+plt.figure(figsize=(10, 6))
+
+sns.barplot(
+    data=df_our_mechanism,
+    x="Quantiles",
+    y="Returned Random",
+    linewidth=2,
+)
+
+plt.title("Guassian Dataset - Fraction of Success", fontsize=16)
+plt.xlabel("Number of Quantiles (m)", fontsize=14)
+plt.ylabel("Fraction", fontsize=14)
+plt.xticks(fontsize=12)
+plt.yticks(fontsize=12)
+plt.tight_layout()
+# save
+plt.savefig(f"{folder_path}/fraction_success.png", dpi=300)
 plt.show()
 
 # Make a plot for the time
@@ -147,6 +167,6 @@ plt.yticks(fontsize=12)
 plt.legend(title="Algorithm")
 plt.tight_layout()
 # save
-plt.savefig(f"{folder_path}/time{tag}.png", dpi=300)
-print("Time plot saved to: ", f"{folder_path}/time{tag}.png")
+plt.savefig(f"{folder_path}/time.png", dpi=300)
 plt.show()
+
