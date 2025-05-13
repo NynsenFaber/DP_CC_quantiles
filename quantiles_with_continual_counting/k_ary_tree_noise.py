@@ -139,7 +139,11 @@ class KaryTreeNoise:
         lambdas = np.linspace(1e-6, lambda_max, num=100)
         best_K = float('inf')
         for lam in lambdas:
-            # denom1 = 1 - b*e^{λ}, denom2 = 1 - b*e^{-λ}: factors from the discrete Laplace MGF denominator
+            # For discrete-Laplace noise X, the moment-generating function is:
+            #   M_X(λ) = E[e^{λX}] = (1 - b)^2 / ((1 - b e^{λ}) (1 - b e^{-λ})).
+            # We decompose the denominator into:
+            #   denom1 = 1 - b * e^{λ},  denom2 = 1 - b * e^{-λ}.
+            # Both denom1 and denom2 must be positive for the MGF to remain finite.
             denom1 = 1 - b * np.exp(lam)
             denom2 = 1 - b * np.exp(-lam)
             if denom1 <= 0 or denom2 <= 0:
