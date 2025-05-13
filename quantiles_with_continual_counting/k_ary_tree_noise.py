@@ -23,6 +23,7 @@ import numpy as np
 from math import ceil, log
 from typing import Optional
 
+
 class KaryTreeNoise:
     def __init__(self, eps: float, max_time: int, k: Optional[int] = None):
         self.eps = eps
