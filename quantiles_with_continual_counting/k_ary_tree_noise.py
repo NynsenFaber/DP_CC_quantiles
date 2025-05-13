@@ -118,11 +118,50 @@ class KaryTreeNoise:
             max_terms += (min(self.k, valid_count) - 1)
         return max_terms * var_node
 
+    def high_prob_bound(self, delta: float) -> float:
+        """
+        Computes a high-probability bound K such that with probability at least 1-delta,
+        the noise magnitude |prefix_noise(t)| ≤ K for all t in [1, max_time],
+        using a union bound and Chernoff tail on the sum of discrete Laplace terms.
+        """
+        if not (0 < delta < 1):
+            raise ValueError("delta must be in (0, 1)")
+        # Compute worst-case number of noise terms per output
+        max_terms = 2
+        for level in range(1, self.H + 1):
+            block_size = self.k ** (self.H - level)
+            valid_count = ceil(self.max_time / block_size)
+            max_terms += (min(self.k, valid_count) - 1)
+        T = self.max_time
+        b = self.b
+        # search λ in (0, -log b) to minimize the bound
+        lambda_max = -np.log(b) * 0.99
+        lambdas = np.linspace(1e-6, lambda_max, num=100)
+        best_K = float('inf')
+        for lam in lambdas:
+            # denom1 = 1 - b*e^{λ}, denom2 = 1 - b*e^{-λ}: factors from the discrete Laplace MGF denominator
+            denom1 = 1 - b * np.exp(lam)
+            denom2 = 1 - b * np.exp(-lam)
+            if denom1 <= 0 or denom2 <= 0:
+                continue
+            M = (1 - b) ** 2 / (denom1 * denom2)
+            # apply Chernoff: P(S ≥ K) ≤ exp(-λ K + n log M)
+            # Union bound: ≤ T * exp(...)
+            # set T * exp(-λ K + n log M) = delta ⇒ K = (n log M + log(T/delta)) / λ
+            K_lam = (max_terms * np.log(M) + np.log(T / delta)) / lam
+            if K_lam < best_K:
+                best_K = K_lam
+        return best_K
+
 
 # Example
 if __name__ == "__main__":
     MAX_TIME = 200
     tree = KaryTreeNoise(eps=1.0, max_time=MAX_TIME)
+
+    for delta in np.geomspace(0.1,1e-20,20):
+        print(f"delta ={delta}, max error={tree.high_prob_bound(delta)}")
+
     for t in range(1,MAX_TIME+1, max(1,MAX_TIME//10)):
         print(f"t={t:3d}, noise={tree.prefix_noise(t)}")
 
