@@ -26,6 +26,8 @@ from typing import Optional
 class KaryTreeNoise:
     def __init__(self, eps: float, max_time: int, k: Optional[int] = None):
         self.eps = eps
+        if max_time <= 1:
+            raise ValueError(f"max_time must be at least 2")
         # if k not provided, pick k that minimizes worst-case variance bound
         if k is None:
             best_k = 2
@@ -35,14 +37,21 @@ class KaryTreeNoise:
                 scale_c = ((H_c + 1) / 2) / eps
                 b_c = np.exp(-1 / scale_c)
                 var_node_c = 2 * b_c / (1 - b_c) ** 2
-                max_terms_c = H_c * (cand - 1) + 2
+                # improved variance bound: count only valid siblings per level
+                max_terms_c = 2
+                for level_c in range(1, H_c + 1):
+                    block_size_c = cand ** (H_c - level_c)
+                    valid_count = ceil(max_time / block_size_c)
+                    # siblings per level capped by k-1
+                    max_terms_c += (min(cand, valid_count) - 1)
                 var_bound_c = max_terms_c * var_node_c
                 if var_bound_c < best_var:
                     best_var = var_bound_c
                     best_k = cand
             k = best_k
         self.k = k
-        self.H = ceil(log(max_time, self.k))
+        self.max_time = max_time
+        self.H = ceil(log(self.max_time, self.k))
         # true sensitivity is (H+1)/2 across levels 0..H
         self.scale = ((self.H + 1) / 2) / eps
         # parameters for discrete Laplace (two-sided geometric)
@@ -60,8 +69,8 @@ class KaryTreeNoise:
         return self.noise[level][idx]
 
     def prefix_noise_terms(self, t: int):
-        if not (1 <= t <= self.k**self.H):
-            raise ValueError(f"t must be in [1, {self.k**self.H}]")
+        if not (1 <= t <= self.max_time):
+            raise ValueError(f"t must be in [1, {self.max_time}]")
 
         # always include root
         yield self._get_noise(0, 0)
@@ -75,6 +84,9 @@ class KaryTreeNoise:
             # include the k-1 sibling noises
             for j in range(self.k):
                 if j == i:
+                    continue
+                # skip nodes whose subtree has no leaves <= max_time
+                if j * block_size >= self.max_time:
                     continue
                 sign = +1 if j < i else -1
                 yield sign * self._get_noise(level, j)
@@ -94,14 +106,22 @@ class KaryTreeNoise:
         """
         # variance of one discrete Laplace node: Var = 2b / (1 - b)^2
         var_node = 2 * self.b / (1 - self.b) ** 2
-        # maximum number of noise terms: root + H*(k-1) siblings + final subtree noise
-        max_terms = self.H * (self.k - 1) + 2
+        max_terms = 2
+        for level in range(1, self.H + 1):
+            block_size = self.k ** (self.H - level)
+            valid_count = ceil(self.max_time / block_size)
+            # siblings per level capped by k-1
+            max_terms += (min(self.k, valid_count) - 1)
         return max_terms * var_node
 
 
 # Example
 if __name__ == "__main__":
-    MAX_TIME = 23
+    MAX_TIME = 200
     tree = KaryTreeNoise(eps=1.0, max_time=MAX_TIME)
-    for t in range(1,MAX_TIME+1):
+    for t in range(1,MAX_TIME+1, max(1,MAX_TIME//10)):
         print(f"t={t:3d}, noise={tree.prefix_noise(t)}")
+
+    for t in range(2,MAX_TIME+1, max(1,MAX_TIME//10)):
+        tree = KaryTreeNoise(eps=1.0, max_time=t)
+        print(f"max_time={t:3d}, H={tree.H}, scale={tree.scale}, b={tree.b}, variance={tree.variance_bound()}")
