@@ -46,6 +46,9 @@ class KaryTreeNoise:
                     # siblings per level capped by k-1
                     max_terms_c += (min(cand, valid_count) - 1)
                 var_bound_c = max_terms_c * var_node_c
+                # early stop: if variance increases significantly past the current best, break
+                if var_bound_c > 10 * best_var:
+                    break
                 if var_bound_c < best_var:
                     best_var = var_bound_c
                     best_k = cand
@@ -123,6 +126,6 @@ if __name__ == "__main__":
     for t in range(1,MAX_TIME+1, max(1,MAX_TIME//10)):
         print(f"t={t:3d}, noise={tree.prefix_noise(t)}")
 
-    for t in range(2,MAX_TIME+1, max(1,MAX_TIME//10)):
+    for t in range(2,MAX_TIME+2, max(1,MAX_TIME//10)):
         tree = KaryTreeNoise(eps=1.0, max_time=t)
-        print(f"max_time={t:3d}, H={tree.H}, scale={tree.scale}, b={tree.b}, variance={tree.variance_bound()}")
+        print(f"max_time={t:3d}, H={tree.H}, scale={tree.scale}, k={tree.k}, variance={tree.variance_bound()}")
