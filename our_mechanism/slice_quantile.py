@@ -69,11 +69,11 @@ class SliceQuantile:
         # instatiate the k-ary tree
         self.tree = KaryTreeNoise(eps=self.eps_cc, max_time=m)
 
-    def is_delta_appriximate_DP(self, delta: float, q_list: list[float]) -> bool:
+    def is_delta_approximate_DP(self, delta: float, q_list: list[float]) -> bool:
         """
         Check if the algorithm is delta approximate DP. It uses the fact that the k-ary tree is a binary tree.
         """
-        ranks = [int(self.n * q) for q in q_list]
+        ranks = [0] + [int(self.n * q) for q in q_list] + [self.n]
         eta = min(np.diff(ranks))
         return self.tree.high_prob_bound(delta=delta) < 0.5 * (eta - 1) - self.l
 
@@ -96,7 +96,7 @@ class SliceQuantile:
         """
         if len(q_list) != self.m:
             raise ValueError("q_list must have the same length as m")
-        if not self.is_delta_appriximate_DP(delta, q_list):
+        if not self.is_delta_approximate_DP(delta, q_list):
             raise ValueError("The algorithm is not delta approximate DP")
 
         ranks: list[int] = [math.floor(q * self.n) for q in q_list]  # get ranks
@@ -118,7 +118,7 @@ class SliceQuantile:
             for i in range(len(slices) - 1):
                 if slices[i][-1] > slices[i + 1][0]:
                     count += 1
-            print("Number of slices that intersect: ", count)
+            if count > 0: print("Number of slices that intersect: ", count)
 
         def algo_helper(slices, bound):
             if len(slices) == 0:
@@ -126,30 +126,29 @@ class SliceQuantile:
             elif len(slices) == 1:
                 return [single_quantile(slices[0], bound, 0.5, epsilon=self.eps_em, swap=True)]
             len_slice = len(slices)
-            array = slices[len_slice // 2]
+            array = slices[len_slice // 2]  # get the middle slice
             z = single_quantile(array, bound, 0.5, epsilon=self.eps_em, swap=True)
             a, b = bound
             return (algo_helper(slices[:len_slice // 2], (a, z))
                     + [z]
                     + algo_helper(slices[len_slice // 2 + 1:], (z, b))
                     )
-
         return algo_helper(slices, self.bound)
 
 
 if __name__ == "__main__":
     n = 100_000
-    m = 20
+    m = 50
     q_list = np.linspace(0, 1, m + 2)[1:-1]
 
     # Generate a random dataset
     a = 0
     b = 2 ** 32
     X = np.random.uniform(a, b, n)
-    eps = 3.51
+    eps = 1.
     bound = (a, b)
-    mechanism = SliceQuantile(bound=bound, n=n, m=m, eps=eps, swap=False)
-    estimates = mechanism.approximate_mechanism(X, q_list, delta=1e-10)
+    mechanism = SliceQuantile(bound=bound, n=n, m=m, eps=eps, swap=False, split=0.5)
+    estimates = mechanism.approximate_mechanism(X, q_list, delta=1e-10, verbose=True)
     print("Estimates: ", estimates)
     statistics = get_statistics(X, q_list, estimates)
     for key, value in statistics.items():

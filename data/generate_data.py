@@ -1,5 +1,6 @@
 import numpy as np
 import pickle
+from tqdm import tqdm
 
 
 def load_data(data_dist: str,
@@ -51,21 +52,8 @@ def load_data(data_dist: str,
         arr = np.concatenate((data, arr))
         # CHECK FOR DUPLICATES
         arr = np.unique(arr)
-
-    elif data_dist == 'uniform_random_walk':
-        # sample from a random walk
-        arr = np.zeros(n)
-        g = kwargs.get('g', 1)  # gap between the elements
-        step = kwargs.get('step', 1)
-        steps = np.random.uniform(low=0, high=step, size=n-1)
-        arr[0] = bounds[0]
-        for i in range(1, n):
-            arr[i] = arr[i - 1] + g + steps[i]
-        return arr
-
     else:
         raise Exception('Unsupported Data Distribution')
-
 
     return arr
 
@@ -120,22 +108,30 @@ if __name__ == "__main__":
     # print("Data saved to gaussian_data_large_bounds.pkl")
 
     ## Generate Mixture data
-    n = 1_000_000
-    n_min = 250_000
-    bound_list = [(-10 * 2 ** i, 10 * 2 ** i) for i in range(8, 33)]
-    width = 100
-    min_gap = 1e-6
+    n = 100_000
+    # n_min = 200_000
+    width = 10
+    bound_list = [(-2 ** i + 10 * width, 2 ** i - 10 * width) for i in range(20, 41)]
+    # min_gap = 1
     output = []
-    for bound in bound_list:
-        data = load_data('mixture', bound, n, m=100, width=width)
+    for bound in tqdm(bound_list):
+        data = load_data('mixture', bound, n, m=1_000, width=width)
         data = np.sort(data)
-        index_to_remove = []
-        for i in range(len(data) - 1):
-            if data[i + 1] - data[i] < min_gap:
-                index_to_remove.append(i)
-        data = np.delete(data, index_to_remove)
-        if len(data) < n_min:
-            raise Exception('Too few samples to generate')
+        # index_to_remove = []
+        # for i in range(len(data) - 1):
+        #     if data[i + 1] - data[i] < min_gap:
+        #         index_to_remove.append(i + 1)
+        # data = np.delete(data, index_to_remove)
+        # while len(data) < n_min:
+        #     print("adding")
+        #     # add more data
+        #     additional_data = load_data('mixture', bound, n_min - len(data), m=10000, width=width)
+        #     data = np.concatenate((data, additional_data))
+        #     index_to_remove = []
+        #     for i in range(len(data) - 1):
+        #         if data[i + 1] - data[i] < min_gap:
+        #             index_to_remove.append(i + 1)
+        #     data = np.delete(data, index_to_remove)
 
         # Store
         output.append({"bounds": (bound[0] - 10 * width, bound[1] + 10 * width),

@@ -13,7 +13,7 @@ def get_epsilon(n_quantiles, epsilon, swap, cdp):
 
     if cdp:
         # epsilon = np.sqrt((2 * epsilon) / composition)
-        epsilon = np.sqrt((8 * epsilon) / composition)
+        epsilon = np.sqrt((8 * epsilon) / composition)  # <-- this is the correct formula
     else:
         epsilon = epsilon / composition
 

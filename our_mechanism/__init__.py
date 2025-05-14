@@ -1,1 +1,1 @@
-from .mechanism import our_dp_top
+from .slice_quantile import SliceQuantile

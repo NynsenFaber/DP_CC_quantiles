@@ -27,7 +27,6 @@ def single_quantile(sorted_array, bounds, quantile, epsilon, swap):
     sensitivity = max(quantile, 1 - quantile)
     if swap:
         sensitivity = 1.0
-
     utility = -np.abs(np.arange(0, n + 1) - (quantile * n))
     idx_left = racing_sample(np.log(intervals) + (epsilon / (2.0 * sensitivity) * utility))
     return np.random.uniform(sorted_array[idx_left], sorted_array[idx_left + 1])
