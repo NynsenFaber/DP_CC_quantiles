@@ -164,7 +164,7 @@ if __name__ == "__main__":
     tree = KaryTreeNoise(eps=1.0, max_time=MAX_TIME)
 
     for delta in np.geomspace(0.1,1e-20,20):
-        print(f"delta ={delta}, max error={tree.high_prob_bound(delta)}")
+        print(f"delta ={delta}, max error<={tree.high_prob_bound(delta)} with probability 1-delta")
 
     for t in range(1,MAX_TIME+1, max(1,MAX_TIME//10)):
         print(f"t={t:3d}, noise={tree.prefix_noise(t)}")
