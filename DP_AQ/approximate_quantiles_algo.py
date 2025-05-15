@@ -29,9 +29,10 @@ def gaussian_noise(array, bounds, scale=0.00001):
     return np.sort(data + np.random.normal(0, scale, len(array))), (bounds[0] - 4 * scale, bounds[1] + 4 * scale)
 
 
-def approximate_quantiles_algo(array, quantiles, bounds, epsilon, swap=False, cdp=False):
+def approximate_quantiles_algo(array, quantiles, bounds, epsilon, swap=False, cdp=False, random_gauss=True):
     epsilon = get_epsilon(len(quantiles), epsilon, swap, cdp)
-    array, bounds = gaussian_noise(array, bounds)
+    if random_gauss:
+        array, bounds = gaussian_noise(array, bounds)
 
     def algo_helper(array, quantiles, bounds):
         m = len(quantiles)
