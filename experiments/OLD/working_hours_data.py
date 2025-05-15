@@ -21,18 +21,17 @@ def gaussian_noise(array, bounds, scale=0.00001, seed=None):
 ## Hyperparameters ##
 # np.random.seed(42)  # for reproducibility
 rho = 1 / 8  # privacy budget for Kaplan et al.
-delta = 1e-60
+delta = 1e-20
 eps = from_rho_eps(rho=rho, delta=delta)  # privacy budget for our mechanism
-# eps = get_eps_from_rho_delta(rho=rho, delta=delta)  # conservative choice
-m_list = range(3, 102, 2)  # number of quantiles
-num_experiments = 1
+m_list = range(3, 122, 2)  # number of quantiles
+num_experiments = 50
 swap = False
-folder_path = "../results/age_data_swap_false"
-data_path = "../data/age_data.pkl"
+folder_path = "../../results/working_hours_data_swap_false"
+data_path = "../../data/working_hours_data.pkl"
 tag = ""
 alg_names = ["Kaplan et al. pure DP", "Kaplan et al. approx DP", "Slicing Quantiles g set",
              "Slicing Quantiles min g"]
-title = "Age Data"
+title = "Working Hours"
 num_algos = len(alg_names)
 bounds = (0, 100)
 scale_for_gaussian = 1e-5
@@ -49,6 +48,7 @@ print(f"Delta: {delta}")
 print("Bounds: ", bounds)
 
 X = data
+X = np.sort(X)
 # add small noise to the data to ensure that they are not equal
 X, bounds = gaussian_noise(X, bounds, scale=scale_for_gaussian)
 g = max(scale_for_gaussian / n ** 2, np.finfo(np.float64).eps)
@@ -82,14 +82,14 @@ for i, m in enumerate(m_list):
 
         # Run our mechanism
         start = time.time()
-        our_estimates = our_mechanism.approximate_mechanism(X, q_list=quantiles[i], delta=delta, verbose=True)
+        our_estimates = our_mechanism.approximate_mechanism(X, q_list=quantiles[i], delta=delta)
         times[2][i][j] = time.time() - start
         statistics = get_statistics(X, quantiles[i], our_estimates)
         max_errors[2][i][j] = statistics['max_error']
 
         # Run our mechanism with min g
         start = time.time()
-        our_estimates = our_mechanism_min_g.approximate_mechanism(X, q_list=quantiles[i], delta=delta, verbose=True)
+        our_estimates = our_mechanism_min_g.approximate_mechanism(X, q_list=quantiles[i], delta=delta)
         times[3][i][j] = time.time() - start
         statistics = get_statistics(X, quantiles[i], our_estimates)
         max_errors[3][i][j] = statistics['max_error']

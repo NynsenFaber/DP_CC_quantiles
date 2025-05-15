@@ -2,7 +2,7 @@ import math
 import numpy as np
 from quantiles_with_continual_counting import KaryTreeNoise
 from DP_AQ import single_quantile  # exponential mechanism used by Kaplan et al.
-from experiments.analysis import get_statistics
+from experiments.OLD.analysis import get_statistics
 
 
 def get_slice_parameter(bound: tuple[float, float],

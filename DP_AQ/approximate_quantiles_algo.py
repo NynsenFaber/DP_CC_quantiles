@@ -53,4 +53,4 @@ def approximate_quantiles_algo(array, quantiles, bounds, epsilon, swap=False, cd
 
         return algo_helper(d_l, q_l, (a, v), swap) + [v] + algo_helper(d_u, q_u, (v, b), swap)
 
-    return algo_helper(np.sort(array), quantiles, bounds, swap)
+    return algo_helper(np.sort(array), quantiles, bounds, swap=False)
