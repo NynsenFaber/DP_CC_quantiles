@@ -25,10 +25,16 @@ from typing import Optional
 
 
 class KaryTreeNoise:
-    def __init__(self, eps: float, max_time: int, k: Optional[int] = None):
-        self.eps = eps
+    def __init__(self,
+                 eps: float,
+                 max_time: int,
+                 k: Optional[int] = None):
+        self.eps = eps  # privacy budget
+        if eps <= 0:
+            raise ValueError("eps must be positive")
         if max_time <= 1:
             raise ValueError(f"max_time must be at least 2")
+
         # if k not provided, pick k that minimizes worst-case variance bound
         if k is None:
             best_k = 2
@@ -53,9 +59,10 @@ class KaryTreeNoise:
                     best_var = var_bound_c
                     best_k = cand
             k = best_k
-        self.k = k
-        self.max_time = max_time
-        self.H = ceil(log(self.max_time, self.k))
+
+        self.k = k  # branching factor
+        self.max_time = max_time  # length of data stream
+        self.H = ceil(log(self.max_time, self.k))  # height of tree
         # true sensitivity is (H+1)/2 across levels 0..H
         self.scale = ((self.H + 1) / 2) / eps
         # parameters for discrete Laplace (two-sided geometric)
@@ -138,6 +145,7 @@ class KaryTreeNoise:
         lambda_max = -np.log(b) * 0.99
         lambdas = np.linspace(1e-6, lambda_max, num=100)
         best_K = float('inf')
+        # look for best bound over λ
         for lam in lambdas:
             # For discrete-Laplace noise X, the moment-generating function is:
             #   M_X(λ) = E[e^{λX}] = (1 - b)^2 / ((1 - b e^{λ}) (1 - b e^{-λ})).
@@ -152,7 +160,7 @@ class KaryTreeNoise:
             # apply Chernoff: P(S ≥ K) ≤ exp(-λ K + n log M)
             # Union bound: ≤ T * exp(...)
             # set T * exp(-λ K + n log M) = delta ⇒ K = (n log M + log(T/delta)) / λ
-            K_lam = (max_terms * np.log(M) + np.log(T / delta)) / lam
+            K_lam = (max_terms * np.log(M) + np.log(2 * T / delta)) / lam
             if K_lam < best_K:
                 best_K = K_lam
         return best_K
