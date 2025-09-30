@@ -1,4 +1,6 @@
 import math
+from typing import Optional
+
 import numpy as np
 from quantiles_with_continual_counting import KaryTreeNoise
 from DP_AQ import single_quantile  # exponential mechanism used by Kaplan et al.
@@ -20,7 +22,10 @@ def get_slice_parameter(bound: tuple[float, float],
     :param g: minimum gap between two numbers in the data set
     :return: An integer l that is the slicing parameter
     """
-    return math.ceil((2 / eps) * np.log(4 * m * (bound[1] - bound[0]) / (g * beta)) - 1)
+    b = bound[1] - bound[0]
+    h = math.ceil((2 / eps) * np.log(2 * m * b / (g * beta)))
+    l = 2 * h + 1  # size of the slice
+    return l
 
 
 def get_epsilons(eps: float, split: float, swap: bool) -> tuple[float, float]:
@@ -70,18 +75,34 @@ class SliceQuantile:
                                          m=m,
                                          eps=self.eps_em,
                                          g=self.g)
+        self.h = (self.l - 1) // 2  # half the size of the slice
         # instatiate the k-ary tree with eps_cc privacy budget
         self.tree = KaryTreeNoise(eps=self.eps_cc, max_time=m)
 
-    def is_delta_approximate_DP(self, delta: float, q_list: list[float]) -> bool:
+    def is_delta_approximate_DP(self,
+                                delta: float,
+                                q_list: Optional[list[float]] = None,
+                                rank_list: Optional[list[int]] = None) -> bool:
         """
         Check if the algorithm is delta approximate DP. It uses the fact that the k-ary tree is a binary tree.
         """
-        ranks = [0] + [int(self.n * q) for q in q_list] + [self.n]
-        eta = min(np.diff(ranks))
-        return self.tree.high_prob_bound(delta=delta) < 0.5 * (eta - 1) - self.l
+        if q_list is None and rank_list is None:
+            raise ValueError("Either q_list or rank_list must be provided")
+        # Adjust delta if using swap (substitute/bounded DP)
+        if self.swap:
+            delta = delta * (1 + np.exp(self.eps_cc + 2 * self.eps_em))
+        if q_list is not None:
+            ranks = [0] + [int(self.n * q) for q in q_list] + [self.n]
+        else:
+            ranks = [0] + rank_list + [self.n]
+        eta = min(np.diff(ranks))  # minimum gap between two consecutive ranks
+        # if slicing parameter too big return False
+        if self.h >= 0.5 * eta:
+            return False
+        return self.tree.high_prob_bound(delta=delta) < 0.5 * eta - self.h
 
-    def get_min_delta(self, q_list: list[float]) -> float:
+    def get_min_delta(self,
+                      q_list: list[float]) -> float:
         """
         It returns the minimum delta that is needed to guarantee that the algorithm is delta approximate DP.
 
@@ -102,28 +123,41 @@ class SliceQuantile:
 
     def approximate_mechanism(self,
                               X: list,
-                              q_list: list,
                               delta: float,
+                              q_list: Optional[list[float]] = None,
+                              rank_list: Optional[list] = None,
                               verbose: bool = False,
+                              sort: bool = True,
                               ) -> list[float]:
         """
         Compute m = len(ranks) quantiles using the SliceQuantiles algorithm.
 
         :param X: data set
-        :param q_list: list of quantiles
         :param delta: upper bound on approximate DP
+        :param q_list: list of quantiles
+        :param rank_list: list of ranks
         :param verbose: if True, print information about the algorithm
+        :param sort: if True, sort the data set
 
         :return: a list of points in (a, b) that are the estimate of the ranks. It returns also a boolean that indicates
         if the algorithm returned a random value or not.
         """
-        if len(q_list) != self.m:
-            raise ValueError("q_list must have the same length as m")
-        if not self.is_delta_approximate_DP(delta, q_list):
-            raise ValueError("The algorithm is not delta approximate DP")
+        if q_list is None and rank_list is None:
+            raise ValueError("Either q_list or rank_list must be provided")
+        if q_list is not None:
+            if len(q_list) != self.m:
+                raise ValueError("q_list must have the same length as m")
+            if not self.is_delta_approximate_DP(delta=delta, q_list=q_list):
+                raise ValueError("The algorithm is not delta approximate DP")
+            ranks: list[int] = [math.floor(q * self.n) for q in q_list]  # get ranks
+        else:
+            if len(rank_list) != self.m:
+                raise ValueError("rank_list must have the same length as m")
+            if not self.is_delta_approximate_DP(delta=delta, rank_list=rank_list):
+                raise ValueError("The algorithm is not delta approximate DP")
+            ranks: list[int] = rank_list
 
-        ranks: list[int] = [math.floor(q * self.n) for q in q_list]  # get ranks
-        X = sorted(X)  # sort the data
+        if sort: X = sorted(X)  # sort the data
 
         # Add Countinual Counting noise to the ranks
         ranks = [rank + self.tree.prefix_noise(i) for i, rank in enumerate(ranks, start=1)]
@@ -131,8 +165,8 @@ class SliceQuantile:
         ## Create the slices
         slices = []
         for i in range(self.m):  # create slices only for the ranks in [0, n].
-            left_index = max(ranks[i] - self.l, 0)
-            right_index = min(ranks[i] + self.l + 1, self.n)
+            left_index = max(ranks[i] - self.h, 0)
+            right_index = min(ranks[i] + self.h, self.n)
             slices.append(X[left_index:right_index + 1])  # +1 because the right bound is exclusive
 
         ## check if the slices intersect
@@ -144,13 +178,22 @@ class SliceQuantile:
             if count > 0: print("Number of slices that intersect: ", count)
 
         def algo_helper(slices, bound):
+            # Recursive function to compute the quantiles, it uses a binary divide & conquer
             if len(slices) == 0:
                 return []
             elif len(slices) == 1:
-                return [single_quantile(slices[0], bound, 0.5, epsilon=self.eps_em, swap=True)]
+                return [single_quantile(sorted_array=slices[0],
+                                        bounds=bound,
+                                        quantile=0.5,
+                                        epsilon=self.eps_em,
+                                        swap=True)]
             len_slice = len(slices)
             array = slices[len_slice // 2]  # get the middle slice
-            z = single_quantile(array, bound, 0.5, epsilon=self.eps_em, swap=True)
+            z = single_quantile(sorted_array=array,
+                                bounds=bound,
+                                quantile=0.5,
+                                epsilon=self.eps_em,
+                                swap=True)
             a, b = bound
             return (algo_helper(slices[:len_slice // 2], (a, z))
                     + [z]
@@ -193,6 +236,7 @@ if __name__ == "__main__":
     n = 100_000
     m = 50
     q_list = np.linspace(0, 1, m + 2)[1:-1]
+    rank_list = [math.floor(q * n) for q in q_list]
 
     # Generate a random dataset
     a = 0
@@ -201,7 +245,10 @@ if __name__ == "__main__":
     eps = 1.
     bound = (a, b)
     mechanism = SliceQuantile(bound=bound, n=n, m=m, eps=eps, swap=False, split=0.5)
-    estimates = mechanism.approximate_mechanism(X, q_list, delta=1e-10, verbose=True)
+    estimates = mechanism.approximate_mechanism(X=X,
+                                                rank_list=rank_list,
+                                                delta=1e-10,
+                                                verbose=True)
     print("Estimates: ", estimates)
     statistics = get_statistics(X, q_list, estimates)
     for key, value in statistics.items():

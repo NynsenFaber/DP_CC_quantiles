@@ -30,10 +30,13 @@ def gaussian_noise(array, bounds, scale=0.00001):
 
 
 ## MOD, added swap to algo_hepler still set to False like original
-def approximate_quantiles_algo(array, quantiles, bounds, epsilon, swap=False, cdp=False, random_gauss=True):
+def approximate_quantiles_algo(array, quantiles, bounds, epsilon, swap=False, cdp=False, random_gauss=True, sort=True):
     epsilon = get_epsilon(len(quantiles), epsilon, swap, cdp)
     if random_gauss:
         array, bounds = gaussian_noise(array, bounds)
+        sort = False
+    if sort:
+        array = np.sort(array)
 
     def algo_helper(array, quantiles, bounds, swap):
         m = len(quantiles)
