@@ -49,23 +49,28 @@ class SliceQuantile:
         """
         :param eps: privacy parameter
         :param bound: bounds of the data set tuple[float, float] (i.e. (a, b))
-        :param g: minimum gap between two numbers in the data set. If None, it is computed directly from the data set.
+        :param g: minimum gap between two numbers in the data set. If None, it is set to 1.0
+        :param n: size of the data set
+        :param m: number of quantiles to compute
         :param split: Is the fraction of privacy budget to give to continual counting noise
         :param swap: if True, bounded DP else unbounded DP
-        :param l: `slicing parameter`, it affects the accurcay of the interior point mechanism (the exponential mechanism). It
-        is used to determine the size of the slices. If None, it is computed using the `get_slice_parameters` function.
+        :param l: `slicing parameter`, it affects the accurcay of the interior point mechanism (the exponential mechanism).
+        It is the siz of the slices. If None, it is computed using the `get_slice_parameters` function.
         """
-        self.m = m
-        self.n = n
-        self.bound = bound
-        self.eps = eps
-        self.eps_cc, self.eps_em = get_epsilons(eps, split, swap)
-        self.split = split
-        self.swap = swap
+        self.m = m  # number of quantiles
+        self.n = n  # size of the data set
+        self.bound = bound  # bounds of the data set
+        self.eps = eps  # total privacy budget
+        self.eps_cc, self.eps_em = get_epsilons(eps, split, swap)  # privacy budgets for the two mechanisms
+        self.split = split  # fraction of privacy budget for continual counting noise
+        self.swap = swap  # if True, bounded DP else unbounded DP
         if l is None:
             self.g = g if g is not None else 1.0
-            self.l = get_slice_parameter(bound, m, self.eps_em, g=self.g)
-        # instatiate the k-ary tree
+            self.l = get_slice_parameter(bound=bound,
+                                         m=m,
+                                         eps=self.eps_em,
+                                         g=self.g)
+        # instatiate the k-ary tree with eps_cc privacy budget
         self.tree = KaryTreeNoise(eps=self.eps_cc, max_time=m)
 
     def is_delta_approximate_DP(self, delta: float, q_list: list[float]) -> bool:
@@ -75,6 +80,25 @@ class SliceQuantile:
         ranks = [0] + [int(self.n * q) for q in q_list] + [self.n]
         eta = min(np.diff(ranks))
         return self.tree.high_prob_bound(delta=delta) < 0.5 * (eta - 1) - self.l
+
+    def get_min_delta(self, q_list: list[float]) -> float:
+        """
+        It returns the minimum delta that is needed to guarantee that the algorithm is delta approximate DP.
+
+        :param q_list: list of quantiles
+        :return: the minimum delta
+        """
+
+        # Perform a binary search on the exponent of delta
+        low, high = -100, 0  # Exponents for delta (10^low to 10^high)
+        while high - low > 0.5:  # Precision for the exponent
+            mid = (low + high) / 2
+            delta = 10 ** mid  # Convert exponent to delta
+            if self.is_delta_approximate_DP(delta, q_list):
+                high = mid
+            else:
+                low = mid
+        return 10 ** high  # Return the minimum delta
 
     def approximate_mechanism(self,
                               X: list,
@@ -132,6 +156,7 @@ class SliceQuantile:
                     + [z]
                     + algo_helper(slices[len_slice // 2 + 1:], (z, b))
                     )
+
         return algo_helper(slices, self.bound)
 
 
